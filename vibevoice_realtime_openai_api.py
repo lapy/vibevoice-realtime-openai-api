@@ -19,6 +19,7 @@ import subprocess
 import threading
 import time
 import traceback
+import unicodedata
 import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -99,6 +100,31 @@ def set_runtime_cfg_scale(value: float) -> float:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"cfg_scale": v}, indent=2) + "\n", encoding="utf-8")
     return v
+
+
+def sanitize_tts_input(text: str) -> str:
+    """Drop everything that is not letters, combining marks, numbers, punctuation, or whitespace.
+
+    Removes emoji, symbols, control/format characters, private-use code points, etc.
+    Line/paragraph breaks and tabs collapse to a single ASCII space; runs of spaces merge.
+    """
+    out: List[str] = []
+    prev_space = False
+    for ch in text:
+        if ch in "\n\r\t\v\f":
+            ch = " "
+        cat = unicodedata.category(ch)
+        major = cat[0]
+        if major == "Z":
+            if not prev_space:
+                out.append(" ")
+                prev_space = True
+            continue
+        if major in ("L", "M", "N", "P"):
+            out.append(ch)
+            prev_space = False
+    return "".join(out).strip()
+
 
 # Voices directory
 VOICES_DIR = MODELS_DIR / "voices"
@@ -411,8 +437,8 @@ class VibeVoiceTTSService:
         voice = self._resolve_voice(voice)
         prefilled_outputs = self._get_voice_prompt(voice)
 
-        # Clean text
-        text = text.strip().replace("'", "'")
+        # Keep only text + punctuation; normalize smart quotes and whitespace
+        text = sanitize_tts_input(text).replace("'", "'")
 
         # Prepare inputs
         inputs = self.processor.process_input_with_cached_prompt(
@@ -694,11 +720,11 @@ async def create_speech(request: TTSRequest):
     if not tts_service:
         raise HTTPException(status_code=503, detail="Service not ready")
 
-    # Validate input
-    if not request.input or not request.input.strip():
+    text_in = sanitize_tts_input(request.input)
+    if not text_in:
         raise HTTPException(status_code=400, detail="Input text is required")
 
-    if len(request.input) > 4096:
+    if len(text_in) > 4096:
         raise HTTPException(status_code=400, detail="Input text exceeds 4096 characters")
 
     if request.response_format.lower() not in SUPPORTED_FORMATS:
@@ -712,7 +738,7 @@ async def create_speech(request: TTSRequest):
             request.cfg_scale if request.cfg_scale is not None else get_runtime_cfg_scale()
         )
         audio = tts_service.generate_speech(
-            text=request.input,
+            text=text_in,
             voice=request.voice,
             cfg_scale=effective_cfg,
         )
