@@ -7,7 +7,7 @@ services:
       - "8880:8880"
     volumes:
       - ./models:/home/ubuntu/app/models
-      - ./vibevoice_realtime_openai_api.py:/home/ubuntu/app/vibevoice_realtime_openai_api.py:ro
+      - ./static:/home/ubuntu/app/static:ro
     environment:
       - CFG_SCALE=1.25  # (0.0 - 3.0, higher = more expressive)
     deploy:

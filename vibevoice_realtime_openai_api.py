@@ -12,8 +12,11 @@ Usage:
 import argparse
 import copy
 import io
+import json
 import os
+import re
 import subprocess
+import threading
 import time
 import traceback
 import urllib.request
@@ -30,7 +33,9 @@ os.environ["HF_HOME"] = str(MODELS_DIR / "huggingface")
 import numpy as np
 import torch
 from fastapi import FastAPI, HTTPException, Response
-from pydantic import BaseModel, Field
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict, Field
 import uvicorn
 import scipy.io.wavfile as wavfile
 
@@ -49,35 +54,126 @@ from vibevoice.processor.vibevoice_streaming_processor import (
 SAMPLE_RATE = 24000
 DEFAULT_MODEL_PATH = "microsoft/VibeVoice-Realtime-0.5B"
 
-# CFG scale for generation (configurable via env var)
-CFG_SCALE = float(os.environ.get("CFG_SCALE", "1.25"))
+# CFG scale for generation (configurable via env var; overridable by persisted UI settings)
+_CFG_SCALE_ENV = float(os.environ.get("CFG_SCALE", "1.25"))
+CFG_SCALE = max(0.0, min(3.0, _CFG_SCALE_ENV))
+
+_CFG_PERSIST_LOCK = threading.Lock()
+_runtime_cfg_scale: float = CFG_SCALE
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+UI_SETTINGS_FILENAME = "ui_settings.json"
+
+
+def _ui_settings_path() -> Path:
+    return MODELS_DIR / UI_SETTINGS_FILENAME
+
+
+def load_persisted_cfg_scale() -> None:
+    """Apply `CFG_SCALE` from env, then override from `MODELS_DIR/ui_settings.json` if valid."""
+    global _runtime_cfg_scale
+    base = max(0.0, min(3.0, float(os.environ.get("CFG_SCALE", "1.25"))))
+    path = _ui_settings_path()
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            v = float(data["cfg_scale"])
+            _runtime_cfg_scale = max(0.0, min(3.0, v))
+            return
+        except (KeyError, ValueError, TypeError, json.JSONDecodeError, OSError):
+            pass
+    _runtime_cfg_scale = base
+
+
+def get_runtime_cfg_scale() -> float:
+    return _runtime_cfg_scale
+
+
+def set_runtime_cfg_scale(value: float) -> float:
+    """Persist CFG scale to disk and use it for requests that omit ``cfg_scale``."""
+    global _runtime_cfg_scale
+    v = max(0.0, min(3.0, float(value)))
+    with _CFG_PERSIST_LOCK:
+        _runtime_cfg_scale = v
+        path = _ui_settings_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"cfg_scale": v}, indent=2) + "\n", encoding="utf-8")
+    return v
 
 # Voices directory
 VOICES_DIR = MODELS_DIR / "voices"
 
-# Voice presets available for download
-VOICE_PRESETS = {
-    "Carter": "en-Carter_man.pt",
-    "Davis": "en-Davis_man.pt",
-    "Emma": "en-Emma_woman.pt",
-    "Frank": "en-Frank_man.pt",
-    "Grace": "en-Grace_woman.pt",
-    "Mike": "en-Mike_man.pt",
-    "Samuel": "in-Samuel_man.pt",
-}
+# Voice preset files from:
+# https://github.com/microsoft/VibeVoice/tree/main/demo/voices/streaming_model
+STREAMING_MODEL_VOICE_FILES: List[str] = [
+    "de-Spk0_man.pt",
+    "de-Spk1_woman.pt",
+    "en-Carter_man.pt",
+    "en-Davis_man.pt",
+    "en-Emma_woman.pt",
+    "en-Frank_man.pt",
+    "en-Grace_woman.pt",
+    "en-Mike_man.pt",
+    "fr-Spk0_man.pt",
+    "fr-Spk1_woman.pt",
+    "in-Samuel_man.pt",
+    "it-Spk0_woman.pt",
+    "it-Spk1_man.pt",
+    "jp-Spk0_man.pt",
+    "jp-Spk1_woman.pt",
+    "kr-Spk0_woman.pt",
+    "kr-Spk1_man.pt",
+    "nl-Spk0_man.pt",
+    "nl-Spk1_woman.pt",
+    "pl-Spk0_man.pt",
+    "pl-Spk1_woman.pt",
+    "pt-Spk0_woman.pt",
+    "pt-Spk1_man.pt",
+    "sp-Spk0_woman.pt",
+    "sp-Spk1_man.pt",
+]
+
+DEFAULT_VOICE_STEM = "en-Carter_man"
+DEFAULT_VOICE_ALIAS = "Carter"
 
 # GitHub raw URL for voice presets
 VOICE_BASE_URL = "https://github.com/microsoft/VibeVoice/raw/main/demo/voices/streaming_model"
 
-# OpenAI voice name mapping to VibeVoice voices
-OPENAI_TO_VIBEVOICE_MAP = {
-    "alloy": "Carter",
-    "echo": "Davis",
-    "fable": "Emma",
-    "onyx": "Frank",
-    "nova": "Grace",
-    "shimmer": "Mike",
-}
+
+def _build_voice_aliases() -> Dict[str, str]:
+    """Map short lowercase alias -> canonical Microsoft streaming_model stem.
+
+    English speakers use given names (as in the legacy VOICE_PRESETS). Other locales use
+    ``{lang}-spk0`` / ``{lang}-spk1`` matching Microsoft's Spk0/Spk1 filenames.
+    """
+    out: Dict[str, str] = {}
+    named: List[tuple[str, str]] = [
+        ("carter", "en-Carter_man"),
+        ("davis", "en-Davis_man"),
+        ("emma", "en-Emma_woman"),
+        ("frank", "en-Frank_man"),
+        ("grace", "en-Grace_woman"),
+        ("mike", "en-Mike_man"),
+        ("samuel", "in-Samuel_man"),
+    ]
+    for alias, stem in named:
+        out[alias] = stem
+    for fn in STREAMING_MODEL_VOICE_FILES:
+        stem = Path(fn).stem
+        m = re.match(r"^([a-z]{2})-(Spk[01])_(man|woman)$", stem, re.IGNORECASE)
+        if m:
+            lang = m.group(1).lower()
+            spk = m.group(2).lower()
+            out[f"{lang}-{spk}"] = stem
+    return out
+
+
+VOICE_ALIASES: Dict[str, str] = _build_voice_aliases()
+
+
+def _aliases_for_stem(stem: str) -> List[str]:
+    """Human-friendly aliases that resolve to this stem (sorted)."""
+    return sorted(a for a, s in VOICE_ALIASES.items() if s == stem)
 
 # Supported audio formats
 SUPPORTED_FORMATS = ["mp3", "wav", "opus", "flac", "aac", "pcm"]
@@ -90,11 +186,11 @@ def ensure_voices_downloaded() -> None:
     """Download voice presets if not present"""
     VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
-    for voice_name, filename in VOICE_PRESETS.items():
+    for filename in STREAMING_MODEL_VOICE_FILES:
         voice_path = VOICES_DIR / filename
         if not voice_path.exists():
             url = f"{VOICE_BASE_URL}/{filename}"
-            print(f"[download] Downloading voice preset: {voice_name}...")
+            print(f"[download] Downloading voice preset: {filename}...")
             try:
                 urllib.request.urlretrieve(url, voice_path)
                 print(f"[download] Downloaded {filename}")
@@ -115,12 +211,23 @@ def get_model_cache_dir() -> str:
 
 class TTSRequest(BaseModel):
     """OpenAI-compatible TTS request"""
+    model_config = ConfigDict(extra="ignore")
+
     input: str = Field(..., description="Text to synthesize", max_length=4096)
-    voice: str = Field(default="Carter", description="Voice ID")
+    voice: str = Field(
+        default=DEFAULT_VOICE_ALIAS,
+        description="Voice: canonical stem (e.g. en-Emma_woman) or short alias (e.g. Emma, de-spk0)",
+    )
     model: str = Field(default="tts-1", description="Model ID (ignored, for compatibility)")
     response_format: str = Field(default="mp3", description="Audio format")
     speed: float = Field(default=1.0, description="Speed (not yet supported)")
     stream: bool = Field(default=False, description="Enable streaming response")
+    cfg_scale: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=3.0,
+        description="CFG guidance for this request only; omit to use persisted server default",
+    )
 
 
 class VoiceInfo(BaseModel):
@@ -129,6 +236,7 @@ class VoiceInfo(BaseModel):
     name: str
     type: str
     gender: Optional[str] = None
+    aliases: List[str] = Field(default_factory=list)
 
 
 class VoicesResponse(BaseModel):
@@ -143,6 +251,11 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     device: str
     features: Dict[str, Any]
+
+
+class UISettings(BaseModel):
+    """Persisted web UI / default API settings"""
+    cfg_scale: float = Field(ge=0.0, le=3.0, description="CFG guidance (higher = more expressive)")
 
 
 # ------------------------------------------------------------------------------
@@ -222,62 +335,52 @@ class VibeVoiceTTSService:
             print(f"[warning] Voices directory not found: {VOICES_DIR}")
             return
 
-        for pt_file in VOICES_DIR.glob("*.pt"):
-            full_name = pt_file.stem  # e.g., "en-Carter_man"
-            self.voice_presets[full_name] = pt_file
+        for pt_file in sorted(VOICES_DIR.glob("*.pt")):
+            stem = pt_file.stem
+            self.voice_presets[stem] = pt_file
 
-            # Also add short name (e.g., "Carter")
-            short_name = full_name
-            if "_" in short_name:
-                short_name = short_name.split("_")[0]
-            if "-" in short_name:
-                short_name = short_name.split("-")[-1]
-            self.voice_presets[short_name] = pt_file
-
-        print(f"[startup] Found {len(self.voice_presets)} voice presets")
+        print(f"[startup] Found {len(self.voice_presets)} voice preset files under {VOICES_DIR}")
 
     def get_available_voices(self) -> List[VoiceInfo]:
-        """Get list of available voices"""
-        voices = []
-        seen = set()
-
-        # Add OpenAI-compatible voices
-        for openai_name, vibevoice_name in OPENAI_TO_VIBEVOICE_MAP.items():
-            voices.append(VoiceInfo(
-                voice_id=openai_name,
-                name=openai_name,
-                type="openai-compatible",
-                gender=None
-            ))
-
-        # Add native VibeVoice voices
-        for name, path in self.voice_presets.items():
-            if name not in seen and "-" not in name:  # Skip full names, use short names
-                path_stem = path.stem  # e.g., "en-Carter_man" or "en-Emma_woman"
-                gender = "female" if "_woman" in path_stem else "male" if "_man" in path_stem else None
-                voices.append(VoiceInfo(
-                    voice_id=name,
-                    name=name,
-                    type="vibevoice-native",
-                    gender=gender
-                ))
-                seen.add(name)
-
+        """Microsoft streaming_model voices (stems match GitHub filenames without .pt)."""
+        voices: List[VoiceInfo] = []
+        for stem in sorted(self.voice_presets.keys()):
+            path_stem = self.voice_presets[stem].stem
+            gender = None
+            if "_woman" in path_stem:
+                gender = "female"
+            elif "_man" in path_stem:
+                gender = "male"
+            voices.append(
+                VoiceInfo(
+                    voice_id=stem,
+                    name=stem,
+                    type="microsoft-streaming_model",
+                    gender=gender,
+                    aliases=_aliases_for_stem(stem),
+                )
+            )
         return voices
 
     def _resolve_voice(self, voice: str) -> str:
-        """Resolve voice name to VibeVoice voice"""
-        # Check if it's an OpenAI voice name
-        if voice.lower() in OPENAI_TO_VIBEVOICE_MAP:
-            voice = OPENAI_TO_VIBEVOICE_MAP[voice.lower()]
-
-        # Check if voice exists
-        if voice not in self.voice_presets:
-            available = [v for v in self.voice_presets.keys() if "-" not in v]
-            print(f"[warning] Voice '{voice}' not found, using 'Carter'. Available: {available}")
-            voice = "Carter"
-
-        return voice
+        """Resolve requested voice to a preset stem (Microsoft streaming_model ID)."""
+        v = voice.strip()
+        if v.lower().endswith(".pt"):
+            v = v[:-3]
+        vl = v.lower()
+        if vl in VOICE_ALIASES:
+            stem = VOICE_ALIASES[vl]
+            if stem in self.voice_presets:
+                return stem
+        if v in self.voice_presets:
+            return v
+        for stem in self.voice_presets:
+            if stem.lower() == vl:
+                return stem
+        available = sorted(self.voice_presets.keys())
+        fallback = DEFAULT_VOICE_STEM if DEFAULT_VOICE_STEM in self.voice_presets else (available[0] if available else v)
+        print(f"[warning] Voice '{voice}' not found, using '{fallback}'. Available stems: {available}")
+        return fallback
 
     def _get_voice_prompt(self, voice: str) -> Any:
         """Load or get cached voice prompt"""
@@ -467,6 +570,8 @@ async def lifespan(app: FastAPI):
     model_path = os.environ.get("VIBEVOICE_MODEL_PATH", DEFAULT_MODEL_PATH)
     device = os.environ.get("VIBEVOICE_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
 
+    load_persisted_cfg_scale()
+
     tts_service = VibeVoiceTTSService(model_path=model_path, device=device)
     try:
         tts_service.load()
@@ -489,6 +594,33 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+if STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def ui_index():
+    """Simple browser UI for speech generation and CFG scale."""
+    path = STATIC_DIR / "index.html"
+    if not path.is_file():
+        return HTMLResponse(
+            "<!DOCTYPE html><html><body><p>static/index.html is missing from the deployment.</p></body></html>",
+            status_code=500,
+        )
+    return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/ui/settings")
+async def get_ui_settings():
+    """Current persisted CFG scale (used when API requests omit ``cfg_scale``)."""
+    return {"cfg_scale": get_runtime_cfg_scale()}
+
+
+@app.put("/api/ui/settings")
+async def put_ui_settings(settings: UISettings):
+    """Persist CFG scale to disk and apply to all future API calls that omit ``cfg_scale``."""
+    return {"cfg_scale": set_runtime_cfg_scale(settings.cfg_scale)}
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -508,16 +640,21 @@ async def health_check():
 
 @app.get("/v1/audio/voices", response_model=VoicesResponse)
 async def list_voices():
-    """List available voices (OpenAI-compatible)"""
+    """List installed Microsoft streaming_model voices.
+
+    OpenAI documents fixed TTS voice names but does not define a standard HTTP
+    endpoint to list them; this route is a small extension for clients that need discovery.
+    Each voice includes ``voice_id`` (canonical Microsoft stem) and ``aliases`` (short names
+    such as ``Carter`` or ``de-spk0``).
+    """
     if not tts_service:
         raise HTTPException(status_code=503, detail="Service not ready")
 
     return VoicesResponse(voices=tts_service.get_available_voices())
 
 
-@app.get("/v1/audio/models")
-async def list_models():
-    """List available TTS models (OpenAI-compatible)"""
+def _list_tts_models_payload() -> Dict[str, Any]:
+    """Shared OpenAI-style model list for /v1/models and /v1/audio/models."""
     return {
         "object": "list",
         "data": [
@@ -537,6 +674,18 @@ async def list_models():
             }
         ]
     }
+
+
+@app.get("/v1/models")
+async def list_openai_models():
+    """List models (OpenAI-compatible; some clients call GET/LIST /v1/models)."""
+    return _list_tts_models_payload()
+
+
+@app.get("/v1/audio/models")
+async def list_models():
+    """List available TTS models (OpenAI-compatible)"""
+    return _list_tts_models_payload()
 
 
 @app.post("/v1/audio/speech")
@@ -559,11 +708,13 @@ async def create_speech(request: TTSRequest):
         )
 
     try:
-        # Generate speech
+        effective_cfg = (
+            request.cfg_scale if request.cfg_scale is not None else get_runtime_cfg_scale()
+        )
         audio = tts_service.generate_speech(
             text=request.input,
             voice=request.voice,
-            cfg_scale=CFG_SCALE,
+            cfg_scale=effective_cfg,
         )
 
         # Convert to requested format
@@ -601,6 +752,7 @@ def main():
     os.environ["VIBEVOICE_DEVICE"] = args.device
 
     print(f"Starting VibeVoice TTS Server on http://{args.host}:{args.port}")
+    print(f"Browser UI: http://{args.host}:{args.port}/")
     print(f"OpenAI TTS endpoint: http://{args.host}:{args.port}/v1/audio/speech")
 
     uvicorn.run(

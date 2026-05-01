@@ -1,7 +1,11 @@
 # VibeVoice OpenAI-Compatible TTS Server Dependencies
-# Python 3.13 + PyTorch built for CUDA 12.8 (wheel index: cu128)
+# Python 3.13 + PyTorch 2.11 (CUDA wheel index via UV_EXTRA_INDEX_URL)
+#
+# Default (matches Docker): PyTorch cu126 / CUDA 12.6 toolchain (incl. Volta / V100)
+#   UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu126 uv pip install -r requirements.txt
+# Optional: cu128 / CUDA 12.8 wheels (no sm_70 in PyTorch 2.11 — avoid for V100)
+#   UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu128 uv pip install -r requirements.txt
 
---extra-index-url https://download.pytorch.org/whl/cu128
 torch==2.11.0
 torchvision==0.26.0
 torchaudio==2.11.0

@@ -1,4 +1,11 @@
-FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
+# Default: CUDA 12.6 + PyTorch cu126 (includes Volta / V100 and newer GPUs on supported drivers).
+# Optional — CUDA 12.8 + cu128 (PyTorch 2.11 cu128 omits Volta sm_70):
+#   docker build --build-arg CUDA_IMAGE_TAG=12.8.0-cudnn-runtime-ubuntu24.04 \
+#     --build-arg PYTORCH_CUDA=cu128 \
+#     --build-arg FLASH_ATTN_URL=https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3%2Bcu128torch2.11-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl \
+#     -t vibevoice-realtime-openai-api:cu128 .
+ARG CUDA_IMAGE_TAG=12.6.3-cudnn-runtime-ubuntu24.04
+FROM nvidia/cuda:${CUDA_IMAGE_TAG}
 
 # Install system packages
 RUN apt-get update && \
@@ -40,31 +47,34 @@ ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 # Install Python 3.13
 RUN /home/ubuntu/.local/bin/uv python install 3.13
 
+ARG PYTORCH_CUDA=cu126
+ENV UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/${PYTORCH_CUDA}
+
+# Only dependency manifest before the heavy layer — keeps cache when app/UI code changes
 COPY --chown=ubuntu:ubuntu requirements.txt .
-COPY --chown=ubuntu:ubuntu entrypoint.sh .
-COPY --chown=ubuntu:ubuntu vibevoice_realtime_openai_api.py .
 
-# Download flash-attn (CUDA 12.8, PyTorch 2.11, CPython 3.13, x86_64)
+ARG FLASH_ATTN_URL=https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3%2Bcu126torch2.11-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl
+
 RUN mkdir -p prebuilt-wheels && \
-    curl -fL -o prebuilt-wheels/flash_attn-2.8.3+cu128torch2.11-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl \
-    "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3%2Bcu128torch2.11-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl"
-
-# Create venv and install deps
-RUN /home/ubuntu/.local/bin/uv venv .venv --python 3.13 --seed && \
+    curl -fL -o prebuilt-wheels/flash_attn-local.whl \
+    "${FLASH_ATTN_URL}" && \
+    /home/ubuntu/.local/bin/uv venv .venv --python 3.13 --seed && \
     . .venv/bin/activate && \
     /home/ubuntu/.local/bin/uv pip install -r requirements.txt && \
-    /home/ubuntu/.local/bin/uv pip install ./prebuilt-wheels/flash_attn-*.whl && \
+    /home/ubuntu/.local/bin/uv pip install ./prebuilt-wheels/flash_attn-local.whl && \
     rm -rf ./prebuilt-wheels && \
     /home/ubuntu/.local/bin/uv cache clean
 
-# Make entrypoint executable
+# Application code last — rebuild from here on Python / UI / entrypoint changes only
+COPY --chown=ubuntu:ubuntu entrypoint.sh .
+COPY --chown=ubuntu:ubuntu vibevoice_realtime_openai_api.py .
+COPY --chown=ubuntu:ubuntu static ./static
+
 RUN chmod +x entrypoint.sh
 
-# App environment
 ENV CFG_SCALE=1.25
 ENV MODELS_DIR=/home/ubuntu/app/models
 
-# Models volume
 VOLUME /home/ubuntu/app/models
 
 EXPOSE 8880

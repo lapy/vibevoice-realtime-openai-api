@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VibeVoice — Speech generation</title>
+  <style>
+    :root {
+      color-scheme: dark light;
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4d;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #4a9eff;
+      --danger: #f07178;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f6f9;
+        --surface: #fff;
+        --border: #c5d0e0;
+        --text: #1a2332;
+        --muted: #5a6b80;
+        --accent: #0066cc;
+        --danger: #c62828;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 0;
+      padding: 1.25rem;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      max-width: 40rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 0.25rem; }
+    .sub { color: var(--muted); font-size: 0.875rem; margin-bottom: 1.25rem; }
+    .sub code { font-size: 0.8em; }
+    .muted { color: var(--muted); font-weight: normal; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin: 0.75rem 0 0.35rem; }
+    input[type="text"], textarea, select {
+      width: 100%;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+    textarea { min-height: 6.5rem; resize: vertical; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .row > *:first-child { flex: 1; min-width: 8rem; }
+    .cfg-value { font-variant-numeric: tabular-nums; min-width: 2.5rem; }
+    button {
+      font: inherit;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--border);
+    }
+    .actions { margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    #status { margin-top: 0.75rem; font-size: 0.875rem; min-height: 1.25rem; }
+    #status.err { color: var(--danger); }
+    #status.ok { color: var(--muted); }
+    audio { width: 100%; margin-top: 1rem; }
+    .hidden { display: none !important; }
+    kbd {
+      font: 0.85em ui-monospace, monospace;
+      padding: 0.1em 0.35rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+  </style>
+</head>
+<body>
+  <h1>VibeVoice TTS</h1>
+  <p class="sub">Generate speech in the browser. CFG scale is saved on the server (under your models directory) and used for all API calls that omit <code>cfg_scale</code>. Tip: <kbd>Ctrl</kbd>+<kbd>Enter</kbd> in the text box to generate.</p>
+
+  <label for="text">Text</label>
+  <textarea id="text" placeholder="Type something to synthesize…"></textarea>
+
+  <label for="voice">Voice</label>
+  <select id="voice"></select>
+
+  <label for="format">Format</label>
+  <select id="format">
+    <option value="mp3" selected>mp3</option>
+    <option value="wav">wav</option>
+    <option value="opus">opus</option>
+    <option value="flac">flac</option>
+    <option value="aac">aac</option>
+    <option value="pcm">pcm (raw)</option>
+  </select>
+
+  <label for="cfg">CFG scale <span class="muted">(0–3, higher = more expressive)</span></label>
+  <div class="row">
+    <input type="range" id="cfg" min="0" max="3" step="0.05" value="1.25" />
+    <span class="cfg-value" id="cfgLabel">1.25</span>
+  </div>
+
+  <div class="actions">
+    <button type="button" id="generate">Generate speech</button>
+    <button type="button" id="saveCfg" class="secondary">Save CFG to server</button>
+  </div>
+  <p id="status" class="ok"></p>
+
+  <audio id="player" controls class="hidden"></audio>
+
+  <script>
+    const CFG_LS = "vibevoice_cfg_scale";
+    const textEl = document.getElementById("text");
+    const voiceEl = document.getElementById("voice");
+    const formatEl = document.getElementById("format");
+    const cfgEl = document.getElementById("cfg");
+    const cfgLabel = document.getElementById("cfgLabel");
+    const generateBtn = document.getElementById("generate");
+    const saveCfgBtn = document.getElementById("saveCfg");
+    const statusEl = document.getElementById("status");
+    const player = document.getElementById("player");
+
+    function setStatus(msg, err) {
+      statusEl.textContent = msg || "";
+      statusEl.className = err ? "err" : "ok";
+    }
+
+    function syncCfgLabel() {
+      const v = parseFloat(cfgEl.value);
+      cfgLabel.textContent = Number.isFinite(v) ? v.toFixed(2) : cfgEl.value;
+    }
+
+    cfgEl.addEventListener("input", () => {
+      syncCfgLabel();
+      try { localStorage.setItem(CFG_LS, cfgEl.value); } catch (_) {}
+    });
+
+    async function loadSettings() {
+      try {
+        const r = await fetch("/api/ui/settings");
+        if (!r.ok) throw new Error("settings " + r.status);
+        const j = await r.json();
+        const s = parseFloat(j.cfg_scale);
+        if (Number.isFinite(s)) {
+          cfgEl.value = String(Math.min(3, Math.max(0, s)));
+          syncCfgLabel();
+          return;
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+      const ls = localStorage.getItem(CFG_LS);
+      if (ls != null && ls !== "") {
+        cfgEl.value = ls;
+        syncCfgLabel();
+      }
+    }
+
+    async function persistCfg() {
+      const v = parseFloat(cfgEl.value);
+      if (!Number.isFinite(v)) {
+        setStatus("Invalid CFG value", true);
+        return;
+      }
+      setStatus("Saving…", false);
+      try {
+        const r = await fetch("/api/ui/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cfg_scale: v }),
+        });
+        if (!r.ok) {
+          const t = await r.text();
+          throw new Error(t || r.status);
+        }
+        const j = await r.json();
+        cfgEl.value = String(j.cfg_scale);
+        syncCfgLabel();
+        try { localStorage.setItem(CFG_LS, cfgEl.value); } catch (_) {}
+        setStatus("CFG saved — applies to all API requests without cfg_scale.", false);
+      } catch (e) {
+        setStatus("Save failed: " + e.message, true);
+      }
+    }
+
+    async function loadVoices() {
+      voiceEl.innerHTML = "";
+      const r = await fetch("/v1/audio/voices");
+      if (!r.ok) throw new Error("voices " + r.status);
+      const j = await r.json();
+      const voices = j.voices || [];
+      for (const v of voices) {
+        const id = v.voice_id;
+        const opt = document.createElement("option");
+        opt.value = id;
+        const alias = (v.aliases && v.aliases.length) ? " (" + v.aliases.join(", ") + ")" : "";
+        opt.textContent = id + alias;
+        voiceEl.appendChild(opt);
+      }
+      if (voices.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "Carter";
+        opt.textContent = "Carter";
+        voiceEl.appendChild(opt);
+      }
+    }
+
+    async function generate() {
+      const input = textEl.value.trim();
+      if (!input) {
+        setStatus("Enter some text first.", true);
+        return;
+      }
+      const voice = voiceEl.value;
+      const response_format = formatEl.value;
+      const cfg_scale = parseFloat(cfgEl.value);
+      generateBtn.disabled = true;
+      setStatus("Generating…", false);
+      player.classList.add("hidden");
+      if (player.src && player.src.startsWith("blob:")) URL.revokeObjectURL(player.src);
+
+      try {
+        const r = await fetch("/v1/audio/speech", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            input,
+            voice,
+            response_format,
+            cfg_scale,
+          }),
+        });
+        if (!r.ok) {
+          let detail = r.statusText;
+          try {
+            const errJ = await r.json();
+            if (errJ.detail) detail = typeof errJ.detail === "string" ? errJ.detail : JSON.stringify(errJ.detail);
+          } catch (_) {}
+          throw new Error(detail);
+        }
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const mime = r.headers.get("Content-Type") || "audio/mpeg";
+
+        if (response_format === "pcm") {
+          player.pause();
+          player.removeAttribute("src");
+          player.classList.add("hidden");
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "speech.pcm";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          setStatus("PCM is raw 16-bit LE mono @ 24 kHz — file download started (" + Math.round(blob.size / 1024) + " KB).", false);
+          return;
+        }
+
+        player.src = url;
+        player.classList.remove("hidden");
+        setStatus("Done — " + Math.round(blob.size / 1024) + " KB (" + mime + ").", false);
+        player.play().catch(() => {});
+      } catch (e) {
+        setStatus("Generation failed: " + e.message, true);
+      } finally {
+        generateBtn.disabled = false;
+      }
+    }
+
+    saveCfgBtn.addEventListener("click", persistCfg);
+    generateBtn.addEventListener("click", generate);
+    textEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        generate();
+      }
+    });
+
+    (async () => {
+      try {
+        await loadSettings();
+        await loadVoices();
+        setStatus("Ready.", false);
+      } catch (e) {
+        setStatus("Startup: " + e.message, true);
+      }
+    })();
+  </script>
+</body>
+</html>
