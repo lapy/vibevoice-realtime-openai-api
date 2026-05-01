@@ -26,18 +26,18 @@ OpenAI-compatible TTS API wrapping [VibeVoice-Realtime-0.5B](https://huggingface
 ## Requirements
 
 - Python 3.13 (via uv) / Docker with NVIDIA GPU support
-- NVIDIA GPU with CUDA 13.x
+- NVIDIA GPU with a driver that supports **CUDA 12.8** (see [CUDA compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/index.html))
 - ffmpeg
 
 ---
 
 ## Option 1: Docker (Recommended)
 
-Best performance with Flash Attention + APEX pre-installed.
+Best performance with Flash Attention pre-installed.
 
-- **CUDA 13.0.2** runtime
+- **CUDA 12.8.0** runtime (NVIDIA [`12.8.0-cudnn-runtime-ubuntu24.04`](https://hub.docker.com/r/nvidia/cuda/tags))
 - **Python 3.13** via uv
-- **Prebuilt wheels**: flash-attn (downloaded during build), apex (bundled)
+- **Prebuilt wheel**: flash-attn (downloaded during build; matches PyTorch 2.11 + cu128)
 
 ```bash
 git clone https://github.com/marhensa/vibevoice-realtime-openai-api.git
@@ -60,7 +60,7 @@ docker run --gpus all -p 8880:8880 \
 
 ## Option 2: Python venv
 
-Requires Python 3.13 and NVIDIA GPU with CUDA 13.x drivers.
+Requires Python 3.13 and an NVIDIA driver compatible with CUDA 12.8.
 
 ### Windows
 
@@ -102,16 +102,14 @@ source .venv/bin/activate
 # Install dependencies
 uv pip install -r requirements.txt
 
-# Download and install prebuilt Flash Attention
-curl -L -o ./prebuilt-wheels/flash_attn-2.8.3+cu130torch2.9-cp313-cp313-linux_x86_64.whl \
-  "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.5.2/flash_attn-2.8.3%2Bcu130torch2.9-cp313-cp313-linux_x86_64.whl"
+# Download and install prebuilt Flash Attention (Linux x86_64; matches torch 2.11 + CUDA 12.8)
+mkdir -p prebuilt-wheels
+curl -L -o ./prebuilt-wheels/flash_attn-2.8.3+cu128torch2.11-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl \
+  "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3%2Bcu128torch2.11-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl"
 uv pip install ./prebuilt-wheels/flash_attn-*.whl
 
-# Install prebuilt APEX
-uv pip install ./prebuilt-wheels/apex-*.whl
-
 # Run (optional: set CFG_SCALE for expressiveness, 0.0-3.0)
-CFG_SCALE=1.25 OPTIMIZE_FOR_SPEED=1 python vibevoice_realtime_openai_api.py --port 8880
+CFG_SCALE=1.25 python vibevoice_realtime_openai_api.py --port 8880
 ```
 
 First run downloads models (~2GB) and voice presets (~22MB) to `./models/`.
@@ -186,7 +184,13 @@ curl -X POST http://localhost:8880/v1/audio/speech \
 | `MODELS_DIR` | `./models` | Path to models directory |
 | `VIBEVOICE_DEVICE` | `cuda` | Device: `cuda` (NVIDIA GPUs), `cpu`, or `mps` (Apple Silicon GPUs) |
 | `CFG_SCALE` | `1.25` | CFG guidance scale (0.0-3.0, higher = more expressive) |
-| `OPTIMIZE_FOR_SPEED` | `1` (Docker) | Set to `1` to suppress APEX warnings |
+## Container registry (GitHub Actions)
+
+Pushes to the repository default branch and version tags `v*` build and publish a **linux/amd64** image to GitHub Container Registry:
+
+`ghcr.io/<owner>/<repo>:latest` (default branch) and `ghcr.io/<owner>/<repo>:<git-sha>`.
+
+Forks and pull requests run the same Docker build without pushing. Make the package public or grant pull access under **Packages** in the repo settings if needed.
 
 ## License
 

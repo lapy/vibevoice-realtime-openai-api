@@ -26,5 +26,5 @@ Thumbs.db
 *.wav
 *.zip
 
-# Prebuilt wheels (flash-attn downloaded from external URL)
+# Prebuilt wheels (flash-attn downloaded during Docker/local GPU setup)
 prebuilt-wheels/flash_attn*.whl

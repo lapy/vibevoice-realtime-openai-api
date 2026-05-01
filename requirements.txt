@@ -1,10 +1,10 @@
 # VibeVoice OpenAI-Compatible TTS Server Dependencies
-# For Python 3.13 with CUDA 13.0
+# Python 3.13 + PyTorch built for CUDA 12.8 (wheel index: cu128)
 
-# PyTorch with CUDA 13.0
---extra-index-url https://download.pytorch.org/whl/cu130
-torch
-torchaudio
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0
+torchvision==0.26.0
+torchaudio==2.11.0
 
 # VibeVoice from GitHub (pinned to specific commit)
 git+https://github.com/microsoft/VibeVoice.git@a507d67f8e78d9ff6b2ec0b79f1f43ad89477187
