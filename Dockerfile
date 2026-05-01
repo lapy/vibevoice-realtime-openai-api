@@ -39,8 +39,9 @@ EOF
 
 RUN touch /home/ubuntu/.sudo_as_admin_successful
 
-# Set ENV for non-interactive CMD
+# Set ENV for non-interactive CMD (HOME must be set; BuildKit does not assume a login user)
 ENV CUDA_HOME=/usr/local/cuda
+ENV HOME=/home/ubuntu
 ENV PATH=$CUDA_HOME/bin:$HOME/.local/bin:$PATH
 ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 
@@ -55,13 +56,14 @@ COPY --chown=ubuntu:ubuntu requirements.txt .
 
 ARG FLASH_ATTN_URL=https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3%2Bcu126torch2.11-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl
 
+# Save wheel with a valid PEP 427 filename (uv rejects names like flash_attn-local.whl — no py tag)
 RUN mkdir -p prebuilt-wheels && \
-    curl -fL -o prebuilt-wheels/flash_attn-local.whl \
-    "${FLASH_ATTN_URL}" && \
+    FN=$(echo "${FLASH_ATTN_URL}" | sed 's#.*/##;s/?.*//;s/%2B/+/g') && \
+    curl -fL -o "prebuilt-wheels/${FN}" "${FLASH_ATTN_URL}" && \
     /home/ubuntu/.local/bin/uv venv .venv --python 3.13 --seed && \
     . .venv/bin/activate && \
     /home/ubuntu/.local/bin/uv pip install -r requirements.txt && \
-    /home/ubuntu/.local/bin/uv pip install ./prebuilt-wheels/flash_attn-local.whl && \
+    /home/ubuntu/.local/bin/uv pip install "prebuilt-wheels/${FN}" && \
     rm -rf ./prebuilt-wheels && \
     /home/ubuntu/.local/bin/uv cache clean
 

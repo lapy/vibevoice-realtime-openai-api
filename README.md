@@ -57,6 +57,8 @@ docker run --gpus all -p 8880:8880 \
 ```
 
 > ⚠️ **Please be patient** and check your network monitor, because on first run it downloads models 📦 (~2GB) and voice presets 🎤 (~22MB) from huggingface and Microsoft VibeVoice repositories to `./models/`. It's not stuck, it's just downloading.
+>
+> **Browser UI:** open `http://localhost:8880/` (compose bind-mounts `./static` for quick UI tweaks; rebuild the image for Python or dependency changes).
 
 ---
 
