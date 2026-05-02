@@ -37,9 +37,9 @@ OpenAI-compatible TTS API wrapping [VibeVoice-Realtime-0.5B](https://huggingface
 
 Best performance with Flash Attention pre-installed.
 
-- **Default image:** CUDA **12.6.3** runtime + PyTorch **`cu126`** ([`12.6.3-cudnn-runtime-ubuntu24.04`](https://hub.docker.com/r/nvidia/cuda/tags)) — **Volta (V100) through current GPUs** on a sufficient driver. `flash-attn` wheel matches `cu126`.
+- **Default image:** CUDA **12.6.3** runtime + PyTorch **`cu126`** ([`12.6.3-cudnn-runtime-ubuntu24.04`](https://hub.docker.com/r/nvidia/cuda/tags)) — broad **NVIDIA GPU** coverage on a sufficient driver. `flash-attn` wheel matches `cu126`.
 - **Python 3.13** via uv
-- **Optional:** rebuild with `CUDA_IMAGE_TAG=12.8.0-…`, `PYTORCH_CUDA=cu128`, and the `cu128` flash-attn URL if you want CUDA 12.8 wheels (**not** for V100 — PyTorch **2.11 cu128** drops sm_70). See comment block at top of `Dockerfile`.
+- **Optional:** rebuild with `CUDA_IMAGE_TAG=12.8.0-…`, `PYTORCH_CUDA=cu128`, and the `cu128` flash-attn URL for CUDA **12.8** wheels — **confirm** PyTorch’s `cu128` build targets your GPU (some lines drop older architectures). See comment block at top of `Dockerfile`.
 
 ```bash
 git clone https://github.com/marhensa/vibevoice-realtime-openai-api.git
@@ -64,7 +64,7 @@ docker run --gpus all -p 8880:8880 \
 
 ## Option 2: Python venv
 
-Requires Python 3.13 and a recent NVIDIA driver. Default local install uses PyTorch **`cu126`** (same as Docker). You can use **`cu128`** instead if you need CUDA 12.8 wheels and do **not** need Volta (V100).
+Requires Python 3.13 and a recent NVIDIA driver. Default local install uses PyTorch **`cu126`** (same as Docker). You can use **`cu128`** instead if you need CUDA 12.8 wheels — **verify** `torch.cuda.get_arch_list()` (or PyTorch docs) includes your GPU.
 
 ### Windows
 
@@ -176,6 +176,20 @@ You can add custom / additional voices by placing `.pt` files in `./models/voice
 
 > **Note**: The Realtime 0.5B model does not provide public voice cloning tools. For custom voice creation, [contact Microsoft](https://github.com/microsoft/VibeVoice). Microsoft plans to expand available speakers in future updates.
 
+## TTS quality
+
+What you hear depends on **diffusion steps**, **CFG**, whether you **stream**, **output format**, and **GPU** headroom.
+
+| Control | Where | Notes |
+|--------|--------|--------|
+| **DDPM steps** | `ddpm_steps` in `models/ui_settings.json` (default for all requests), or optional **`ddpm_steps`** in `POST /v1/audio/speech` | Higher values (e.g. 10–20) often improve clarity at the cost of slower synthesis. **Per-request** `ddpm_steps` is applied under a **global lock** (other clients wait; use for A/B or rare high-quality runs, not high QPS). |
+| **CFG scale** | `cfg_scale` in settings, or optional **`cfg_scale`** in the JSON body | Typical range **~1.2–1.6**; very high values can destabilize. Omitted field → saved server default. |
+| **Streaming** | `stream: true` or `stream_format: "audio"` | **Lower first-byte latency**; path uses light **causal** filtering only. **Non-streaming** applies full **`enhance_tts_audio`** after generation (band shaping, optional light DNS, peak, fades). For **final assets**, prefer non-stream when latency allows. |
+| **Full enhance on stream** | **`vibevoice_post_enhance_stream`: true** (streaming only) | Server buffers the full utterance, runs the same **offline-style** enhance as non-stream, then sends PCM. **Not low-latency**—use when you need streaming API shape but want closer-to-offline cleanup. |
+| **Format** | `response_format` | **WAV/FLAC** are lossless; **MP3/AAC** add encoder flavor (often negligible at high bitrate). |
+
+---
+
 ## API
 
 ```bash
@@ -190,6 +204,18 @@ curl -X POST http://localhost:8880/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{"input": "Hello", "voice": "Emma", "response_format": "mp3", "cfg_scale": 1.25}' \
   --output speech.mp3
+
+# Optional: per-request DDPM steps (serialized; other in-flight overrides wait)
+curl -X POST http://localhost:8880/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Hello", "voice": "Emma", "response_format": "wav", "ddpm_steps": 18}' \
+  --output speech.wav
+
+# Streaming with full offline-style enhancement after the utterance completes (high latency)
+curl -X POST http://localhost:8880/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Hello", "voice": "Emma", "response_format": "pcm", "stream": true, "vibevoice_post_enhance_stream": true}' \
+  --output speech.pcm
 ```
 
 ```powershell
@@ -205,15 +231,19 @@ Invoke-RestMethod -Uri "http://localhost:8880/v1/audio/speech" `
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MODELS_DIR` | `./models` | Path to models directory |
-| `VIBEVOICE_DEVICE` | `cuda` | Device: `cuda` (NVIDIA GPUs), `cpu`, or `mps` (Apple Silicon GPUs) |
+| `VIBEVOICE_DEVICE` | `cuda` | Torch device: `cuda` (first NVIDIA GPU), `cuda:N` (e.g. `cuda:2` for the third GPU), `cpu`, or `mps` |
+| `VIBEVOICE_USE_FLASH_ATTN` | (unset) | Set to `1` to try **Flash Attention 2** first on CUDA. On some **older NVIDIA architectures** (e.g. compute capability **7.0**) the default is **SDPA** for reliability. |
 | `CFG_SCALE` | `1.25` | Initial CFG (0–3) if `models/ui_settings.json` is absent; overridden by that file after first save from the UI or `PUT /api/ui/settings` |
+
+`ddpm_steps` in `ui_settings.json` is the default DDPM count at startup and after **Save** in the UI. Optional JSON field **`ddpm_steps`** on `/v1/audio/speech` overrides for **one** request (global mutex + restore); concurrent throughput drops because overrides cannot overlap safely on a single model instance.
 
 ## Troubleshooting (common log lines)
 
 - **APEX FusedRMSNorm not available** — VibeVoice uses native PyTorch RMSNorm when [NVIDIA Apex](https://github.com/NVIDIA/apex) is not installed; behavior is correct, only a possible small speed difference.
 - **Tokenizer class … Qwen2Tokenizer … VibeVoiceTextTokenizerFast** — Hugging Face warns when the checkpoint’s tokenizer type differs from the class used to load it; usually harmless for this model.
 - **Error in cpuinfo / /proc/cpuinfo** — Often seen in containers with restricted CPU visibility; unrelated to GPU inference.
-- **V100 / “compute capability 7.0” vs PyTorch cu128** — The **default** image uses **cu126** (Volta supported). If you switch the image to **cu128**, PyTorch **2.11** CUDA **12.8** wheels omit Volta (sm_70); see [PyTorch’s guidance](https://github.com/pytorch/pytorch/releases).
+- **Wrong PyTorch CUDA wheel / “no kernel for this GPU”** — Prefer **`cu126`** installs (`UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu126`); the default **Dockerfile** uses **CUDA 12.6 + cu126**. Some **`cu128`** PyTorch builds omit older NVIDIA architectures. On startup we **default to SDPA** on capability **7.0** unless `VIBEVOICE_USE_FLASH_ATTN=1`, and we **fail fast** if `torch.cuda.get_arch_list()` omits your GPU’s `sm_XX`.
+- **`RuntimeError: cutlassF: no kernel found to launch!`** — Common on **pre-Ampere** NVIDIA GPUs with **bfloat16** and PyTorch’s **memory-efficient SDPA**. This server **disables flash/mem-efficient SDPA** and loads in **float32** on those GPUs automatically (Ampere+ still uses **bfloat16**).
 
 ## Container registry (GitHub Actions)
 

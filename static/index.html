@@ -9,20 +9,24 @@
       color-scheme: dark light;
       --bg: #0f1419;
       --surface: #1a2332;
+      --surface2: #141c28;
       --border: #2d3a4d;
       --text: #e7ecf3;
       --muted: #8b9cb3;
       --accent: #4a9eff;
+      --accent-dim: #3a7ecc;
       --danger: #f07178;
     }
     @media (prefers-color-scheme: light) {
       :root {
         --bg: #f4f6f9;
         --surface: #fff;
+        --surface2: #eef1f6;
         --border: #c5d0e0;
         --text: #1a2332;
         --muted: #5a6b80;
         --accent: #0066cc;
+        --accent-dim: #0052a3;
         --danger: #c62828;
       }
     }
@@ -30,33 +34,102 @@
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       margin: 0;
-      padding: 1.25rem;
+      padding: 1.25rem 1rem 2rem;
       background: var(--bg);
       color: var(--text);
       line-height: 1.45;
-      max-width: 40rem;
+      max-width: 56rem;
       margin-left: auto;
       margin-right: auto;
     }
     h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 0.25rem; }
-    .sub { color: var(--muted); font-size: 0.875rem; margin-bottom: 1.25rem; }
-    .sub code { font-size: 0.8em; }
-    .muted { color: var(--muted); font-weight: normal; }
-    label { display: block; font-size: 0.8rem; color: var(--muted); margin: 0.75rem 0 0.35rem; }
-    input[type="text"], textarea, select {
+    .lead {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin: 0 0 1.25rem;
+      max-width: 46rem;
+    }
+    .lead code { font-size: 0.8em; }
+    .layout {
+      display: grid;
+      gap: 1rem;
+    }
+    @media (min-width: 52rem) {
+      .layout {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+      }
+      .layout .span-2 { grid-column: 1 / -1; }
+    }
+    section.panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.1rem 1.1rem;
+    }
+    section.panel > h2 {
+      margin: 0 0 0.85rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    fieldset {
+      border: none;
+      margin: 0;
+      padding: 0;
+    }
+    fieldset + fieldset { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+    legend {
+      padding: 0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+    .hint { font-size: 0.78rem; color: var(--muted); margin-top: 0.35rem; line-height: 1.35; }
+    label, .chk-label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 0.65rem 0 0.35rem;
+    }
+    label:first-of-type { margin-top: 0; }
+    input[type="text"], textarea, select, input[type="number"] {
       width: 100%;
       padding: 0.55rem 0.65rem;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: var(--surface);
+      background: var(--surface2);
       color: var(--text);
       font: inherit;
     }
-    textarea { min-height: 6.5rem; resize: vertical; }
+    input[type="number"] { font-variant-numeric: tabular-nums; }
+    textarea { min-height: 5.5rem; resize: vertical; }
     input[type="range"] { width: 100%; accent-color: var(--accent); }
-    .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
-    .row > *:first-child { flex: 1; min-width: 8rem; }
-    .cfg-value { font-variant-numeric: tabular-nums; min-width: 2.5rem; }
+    .row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .row > input[type="range"] { flex: 1; min-width: 6rem; }
+    .val {
+      font-variant-numeric: tabular-nums;
+      min-width: 3rem;
+      text-align: right;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+    .chk-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .chk-row input { width: auto; margin: 0; }
+    .chk-row label { margin: 0; cursor: pointer; color: var(--text); }
     button {
       font: inherit;
       padding: 0.6rem 1rem;
@@ -69,129 +142,410 @@
     }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button.secondary {
-      background: var(--surface);
+      background: var(--surface2);
       color: var(--text);
       border-color: var(--border);
     }
-    .actions { margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    #status { margin-top: 0.75rem; font-size: 0.875rem; min-height: 1.25rem; }
+    .actions {
+      margin-top: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    #status { margin-top: 0.65rem; font-size: 0.875rem; min-height: 1.25rem; }
     #status.err { color: var(--danger); }
     #status.ok { color: var(--muted); }
-    audio { width: 100%; margin-top: 1rem; }
+    audio { width: 100%; margin-top: 0.75rem; }
     .hidden { display: none !important; }
+    #streamDl { margin-top: 0.5rem; }
+    #streamDl a { color: var(--accent); }
     kbd {
       font: 0.85em ui-monospace, monospace;
       padding: 0.1em 0.35rem;
       border-radius: 4px;
       border: 1px solid var(--border);
-      background: var(--surface);
+      background: var(--surface2);
     }
   </style>
 </head>
 <body>
   <h1>VibeVoice TTS</h1>
-  <p class="sub">Generate speech in the browser. CFG scale is saved on the server (under your models directory) and used for all API calls that omit <code>cfg_scale</code>. Tip: <kbd>Ctrl</kbd>+<kbd>Enter</kbd> in the text box to generate.</p>
+  <p class="lead">Generate speech and tune server defaults. Settings are saved to <code>models/ui_settings.json</code> and apply to all requests that omit optional fields (e.g. API calls without <code>cfg_scale</code>). <kbd>Ctrl</kbd>+<kbd>Enter</kbd> in the text area generates.</p>
 
-  <label for="text">Text</label>
-  <textarea id="text" placeholder="Type something to synthesize…"></textarea>
+  <div class="layout">
+    <section class="panel span-2">
+      <h2>Generate</h2>
+      <label for="text">Text</label>
+      <textarea id="text" placeholder="Type something to synthesize…"></textarea>
+      <div class="row" style="margin-top:0.75rem">
+        <div style="flex:1; min-width:12rem">
+          <label for="voice">Voice</label>
+          <select id="voice"></select>
+        </div>
+        <div style="flex:1; min-width:10rem">
+          <label for="format">Output format</label>
+          <select id="format">
+            <option value="mp3" selected>mp3</option>
+            <option value="wav">wav</option>
+            <option value="opus">opus</option>
+            <option value="flac">flac</option>
+            <option value="aac">aac</option>
+            <option value="pcm">pcm (raw)</option>
+          </select>
+        </div>
+      </div>
+      <div class="chk-row">
+        <input type="checkbox" id="streamPcm" />
+        <label for="streamPcm">Stream playback (PCM over HTTP)</label>
+      </div>
+      <div class="chk-row">
+        <input type="checkbox" id="streamFullEnhance" />
+        <label for="streamFullEnhance">After stream completes, apply full offline enhancement (buffers on server; delays playback until the utterance is ready)</label>
+      </div>
+      <p class="hint">When streaming is enabled, audio is played live as chunks arrive (24&nbsp;kHz s16le mono) via the Web Audio API unless full enhancement is checked (then the server finishes synthesis + cleanup before bytes are sent). You can download the full PCM after playback. Re-click Generate to cancel an in-flight stream.</p>
+      <div class="actions">
+        <button type="button" id="generate">Generate speech</button>
+      </div>
+      <audio id="player" controls class="hidden"></audio>
+    </section>
 
-  <label for="voice">Voice</label>
-  <select id="voice"></select>
+    <section class="panel">
+      <h2>Synthesis</h2>
+      <fieldset>
+        <legend>Classifier-free guidance</legend>
+        <label for="cfg">CFG scale <span class="hint" style="display:inline;margin:0">(0–3)</span></label>
+        <div class="row">
+          <input type="range" id="cfg" min="0" max="3" step="0.05" value="1.25" />
+          <span class="val" id="cfgLabel">1.25</span>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Diffusion quality</legend>
+        <label for="ddpm">DDPM inference steps <span class="hint" style="display:inline;margin:0">(1–50)</span></label>
+        <div class="row">
+          <input type="range" id="ddpm" min="1" max="50" step="1" value="5" />
+          <span class="val" id="ddpmLabel">5</span>
+        </div>
+        <p class="hint">Higher values often sound cleaner but cost more GPU time.</p>
+      </fieldset>
+      <p class="hint" style="margin-top:0.75rem"><strong>Quality tips:</strong> For final assets, prefer <strong>non-streaming</strong> and <strong>wav/flac</strong> over lossy codecs. Streaming is lower latency but uses light per-chunk filtering unless you enable full enhancement below. Typical <strong>CFG</strong> is ~1.2–1.6; very high CFG can cause artifacts. Optional API fields: <code>ddpm_steps</code> (per request, serialized server-wide) and <code>vibevoice_post_enhance_stream</code> when streaming.</p>
+      <div class="actions" style="margin-top:0.5rem">
+        <button type="button" class="secondary" id="presetFast">Fast</button>
+        <button type="button" class="secondary" id="presetBalanced">Balanced</button>
+        <button type="button" class="secondary" id="presetHigh">High quality</button>
+      </div>
+      <p class="hint">Presets set DDPM and CFG in this form. Use <strong>Save all settings to server</strong> so API clients that omit optional fields get the same defaults.</p>
+    </section>
 
-  <label for="format">Format</label>
-  <select id="format">
-    <option value="mp3" selected>mp3</option>
-    <option value="wav">wav</option>
-    <option value="opus">opus</option>
-    <option value="flac">flac</option>
-    <option value="aac">aac</option>
-    <option value="pcm">pcm (raw)</option>
-  </select>
+    <section class="panel">
+      <h2>Post-processing</h2>
+      <p class="hint" style="margin-top:0"><strong>Speech-friendly defaults:</strong> high-pass <strong>60&nbsp;Hz</strong> cuts rumble and sub-bass without touching normal voice fundamentals (typical adult F0 ~80–250&nbsp;Hz). Low-pass <strong>0</strong> leaves the full band up to Nyquist at 24&nbsp;kHz—avoid setting it low (&lt;8&nbsp;kHz) or you will dull consonants and “air”. Edge fade and peak ceiling reduce clicks and digital overs; they do not narrow the vocal formant range.</p>
+      <div class="chk-row" style="margin-bottom:0.75rem">
+        <input type="checkbox" id="ttsEnhance" checked />
+        <label for="ttsEnhance">Enable audio enhancement</label>
+      </div>
+      <fieldset>
+        <legend>Band shaping</legend>
+        <label for="highpass">High-pass (Hz)</label>
+        <div class="row">
+          <input type="range" id="highpass" min="20" max="500" step="1" value="60" />
+          <span class="val" id="highpassLabel">60</span>
+        </div>
+        <label for="lowpass">Low-pass (Hz)</label>
+        <div class="row">
+          <input type="range" id="lowpass" min="0" max="12000" step="100" value="0" />
+          <span class="val" id="lowpassLabel">0 (off)</span>
+        </div>
+        <p class="hint">Set low-pass to <strong>0</strong> for full speech bandwidth at 24&nbsp;kHz output (recommended). Raise it only if you want extra high-frequency roll-off.</p>
+      </fieldset>
+      <fieldset>
+        <legend>Cleanup</legend>
+        <div class="chk-row">
+          <input type="checkbox" id="ttsLightDns" />
+          <label for="ttsLightDns">Light spectral denoise <span class="hint" style="display:inline">(offline path only)</span></label>
+        </div>
+        <label for="fadeMs">Edge fade (ms)</label>
+        <div class="row">
+          <input type="range" id="fadeMs" min="0" max="50" step="0.5" value="3.5" />
+          <span class="val" id="fadeMsLabel">3.5</span>
+        </div>
+        <label for="targetPeak">Peak ceiling (when over full scale)</label>
+        <div class="row">
+          <input type="range" id="targetPeak" min="0.5" max="1" step="0.01" value="0.98" />
+          <span class="val" id="targetPeakLabel">0.98</span>
+        </div>
+      </fieldset>
+      <div class="actions">
+        <button type="button" id="resetPostprocess" class="secondary">Reset post-processing to recommended</button>
+      </div>
+    </section>
 
-  <label for="cfg">CFG scale <span class="muted">(0–3, higher = more expressive)</span></label>
-  <div class="row">
-    <input type="range" id="cfg" min="0" max="3" step="0.05" value="1.25" />
-    <span class="cfg-value" id="cfgLabel">1.25</span>
+    <section class="panel span-2">
+      <h2>Server configuration</h2>
+      <p class="hint" style="margin-top:0">Save writes the full document below. The <strong>Generate</strong> button uses the current form values immediately (you do not have to save first), but other API clients pick up saved defaults for omitted parameters.</p>
+      <div class="actions">
+        <button type="button" id="saveSettings">Save all settings to server</button>
+        <button type="button" id="reloadSettings" class="secondary">Reload from server</button>
+      </div>
+      <p id="status" class="ok"></p>
+      <p id="streamDl" class="hint hidden"><a id="streamDlLink" href="#">Download last stream as PCM</a></p>
+    </section>
   </div>
-
-  <div class="actions">
-    <button type="button" id="generate">Generate speech</button>
-    <button type="button" id="saveCfg" class="secondary">Save CFG to server</button>
-  </div>
-  <p id="status" class="ok"></p>
-
-  <audio id="player" controls class="hidden"></audio>
 
   <script>
-    const CFG_LS = "vibevoice_cfg_scale";
+    const LS_KEY = "vibevoice_ui_settings_v2";
+
     const textEl = document.getElementById("text");
     const voiceEl = document.getElementById("voice");
     const formatEl = document.getElementById("format");
+    const streamPcmEl = document.getElementById("streamPcm");
     const cfgEl = document.getElementById("cfg");
     const cfgLabel = document.getElementById("cfgLabel");
+    const ddpmEl = document.getElementById("ddpm");
+    const ddpmLabel = document.getElementById("ddpmLabel");
+    const ttsEnhanceEl = document.getElementById("ttsEnhance");
+    const highpassEl = document.getElementById("highpass");
+    const highpassLabel = document.getElementById("highpassLabel");
+    const lowpassEl = document.getElementById("lowpass");
+    const lowpassLabel = document.getElementById("lowpassLabel");
+    const ttsLightDnsEl = document.getElementById("ttsLightDns");
+    const fadeMsEl = document.getElementById("fadeMs");
+    const fadeMsLabel = document.getElementById("fadeMsLabel");
+    const targetPeakEl = document.getElementById("targetPeak");
+    const targetPeakLabel = document.getElementById("targetPeakLabel");
     const generateBtn = document.getElementById("generate");
-    const saveCfgBtn = document.getElementById("saveCfg");
+    const saveBtn = document.getElementById("saveSettings");
+    const reloadBtn = document.getElementById("reloadSettings");
     const statusEl = document.getElementById("status");
     const player = document.getElementById("player");
+    const streamDl = document.getElementById("streamDl");
+    const streamDlLink = document.getElementById("streamDlLink");
+    const resetPostprocessBtn = document.getElementById("resetPostprocess");
+    const streamFullEnhanceEl = document.getElementById("streamFullEnhance");
+    const presetFastBtn = document.getElementById("presetFast");
+    const presetBalancedBtn = document.getElementById("presetBalanced");
+    const presetHighBtn = document.getElementById("presetHigh");
+
+    /** DDPM + CFG quality presets (match Save flow for persistence). */
+    const QUALITY_PRESETS = {
+      fast: { ddpm_steps: 5, cfg_scale: 1.2 },
+      balanced: { ddpm_steps: 11, cfg_scale: 1.35 },
+      high: { ddpm_steps: 22, cfg_scale: 1.5 },
+    };
+
+    const PCM_RATE = 24000;
+
+    /** Matches server ``default_ui_settings()`` post-processing + speech-friendly band limits. */
+    const POSTPROCESS_RECOMMENDED = {
+      tts_enhance: true,
+      tts_highpass_hz: 60,
+      tts_lowpass_hz: 0,
+      tts_light_dns: false,
+      tts_fade_ms: 3.5,
+      tts_target_peak: 0.98,
+    };
+
+    /** @type {AbortController | null} */
+    let streamAbortController = null;
+    /** @type {AudioContext | null} */
+    let streamAudioCtx = null;
+    let streamNextTime = 0;
+
+    function stopStreamingPlayback() {
+      if (streamAbortController) {
+        try { streamAbortController.abort(); } catch (_) {}
+        streamAbortController = null;
+      }
+      if (streamAudioCtx && streamAudioCtx.state !== "closed") {
+        streamAudioCtx.close().catch(() => {});
+        streamAudioCtx = null;
+      }
+      streamNextTime = 0;
+    }
+
+    function resampleLinear(input, fromRate, toRate) {
+      if (fromRate === toRate || input.length === 0) return input;
+      const ratio = toRate / fromRate;
+      const outLen = Math.max(1, Math.round(input.length * ratio));
+      const out = new Float32Array(outLen);
+      for (let i = 0; i < outLen; i++) {
+        const x = i / ratio;
+        const i0 = Math.floor(x);
+        const i1 = Math.min(i0 + 1, input.length - 1);
+        const t = x - i0;
+        out[i] = input[i0] * (1 - t) + input[i1] * t;
+      }
+      return out;
+    }
+
+    /**
+     * Read streaming PCM response, play through Web Audio, return all bytes for optional download.
+     * @param {Response} response
+     * @param {(n: number) => void} [onProgress]
+     */
+    async function streamAndPlayPcm(response, onProgress) {
+      const recorded = [];
+
+      if (streamAudioCtx && streamAudioCtx.state !== "closed") {
+        streamAudioCtx.close().catch(() => {});
+        streamAudioCtx = null;
+      }
+      streamAudioCtx = new AudioContext({ sampleRate: PCM_RATE });
+      const ctx = streamAudioCtx;
+      const outRate = ctx.sampleRate;
+      if (ctx.state === "suspended") await ctx.resume();
+
+      const reader = response.body && response.body.getReader();
+      if (!reader) throw new Error("No response body stream");
+
+      let leftover = new Uint8Array(0);
+      let totalBytes = 0;
+      streamNextTime = ctx.currentTime + 0.06;
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!value || !value.byteLength) continue;
+          totalBytes += value.byteLength;
+          const u8 = value instanceof Uint8Array ? value : new Uint8Array(value);
+          recorded.push(new Uint8Array(u8));
+
+          if (onProgress) onProgress(totalBytes);
+
+          const merged = new Uint8Array(leftover.length + u8.length);
+          merged.set(leftover);
+          merged.set(u8, leftover.length);
+          const nByte = Math.floor(merged.length / 2) * 2;
+          if (nByte === 0) {
+            leftover = merged;
+            continue;
+          }
+          const pcmU8 = merged.subarray(0, nByte);
+          leftover = merged.subarray(nByte);
+
+          const int16 = new Int16Array(pcmU8.buffer, pcmU8.byteOffset, nByte / 2);
+          let float32 = new Float32Array(int16.length);
+          for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+
+          if (outRate !== PCM_RATE) float32 = resampleLinear(float32, PCM_RATE, outRate);
+
+          if (float32.length === 0) continue;
+          const buf = ctx.createBuffer(1, float32.length, outRate);
+          buf.copyToChannel(float32, 0);
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(ctx.destination);
+          const t = Math.max(streamNextTime, ctx.currentTime + 0.005);
+          src.start(t);
+          streamNextTime = t + buf.duration;
+        }
+      } finally {
+        const waitS = Math.max(0, streamNextTime - ctx.currentTime);
+        await new Promise((r) => setTimeout(r, waitS * 1000 + 120));
+      }
+
+      return { totalBytes, pcmBlob: new Blob(recorded, { type: "application/octet-stream" }) };
+    }
 
     function setStatus(msg, err) {
       statusEl.textContent = msg || "";
       statusEl.className = err ? "err" : "ok";
     }
 
-    function syncCfgLabel() {
-      const v = parseFloat(cfgEl.value);
-      cfgLabel.textContent = Number.isFinite(v) ? v.toFixed(2) : cfgEl.value;
+    function syncLabels() {
+      cfgLabel.textContent = parseFloat(cfgEl.value).toFixed(2);
+      ddpmLabel.textContent = String(parseInt(ddpmEl.value, 10));
+      highpassLabel.textContent = String(parseInt(highpassEl.value, 10));
+      const lp = parseInt(lowpassEl.value, 10);
+      lowpassLabel.textContent = lp === 0 ? "0 (off)" : String(lp);
+      fadeMsLabel.textContent = parseFloat(fadeMsEl.value).toFixed(1);
+      targetPeakLabel.textContent = parseFloat(targetPeakEl.value).toFixed(2);
     }
 
-    cfgEl.addEventListener("input", () => {
-      syncCfgLabel();
-      try { localStorage.setItem(CFG_LS, cfgEl.value); } catch (_) {}
+    function formToPayload() {
+      return {
+        cfg_scale: Math.min(3, Math.max(0, parseFloat(cfgEl.value) || 0)),
+        ddpm_steps: Math.min(50, Math.max(1, parseInt(ddpmEl.value, 10) || 1)),
+        tts_enhance: ttsEnhanceEl.checked,
+        tts_highpass_hz: Math.min(500, Math.max(20, parseFloat(highpassEl.value) || 60)),
+        tts_lowpass_hz: Math.min(12000, Math.max(0, parseFloat(lowpassEl.value) || 0)),
+        tts_light_dns: ttsLightDnsEl.checked,
+        tts_fade_ms: Math.min(50, Math.max(0, parseFloat(fadeMsEl.value) || 0)),
+        tts_target_peak: Math.min(1, Math.max(0.5, parseFloat(targetPeakEl.value) || 0.98)),
+        ui_playback_stream_pcm: streamPcmEl.checked,
+      };
+    }
+
+    function applyPayload(j) {
+      if (typeof j.cfg_scale === "number") cfgEl.value = String(Math.min(3, Math.max(0, j.cfg_scale)));
+      if (typeof j.ddpm_steps === "number") ddpmEl.value = String(Math.min(50, Math.max(1, j.ddpm_steps)));
+      if (typeof j.tts_enhance === "boolean") ttsEnhanceEl.checked = j.tts_enhance;
+      if (typeof j.tts_highpass_hz === "number") highpassEl.value = String(Math.min(500, Math.max(20, j.tts_highpass_hz)));
+      if (typeof j.tts_lowpass_hz === "number") lowpassEl.value = String(Math.min(12000, Math.max(0, j.tts_lowpass_hz)));
+      if (typeof j.tts_light_dns === "boolean") ttsLightDnsEl.checked = j.tts_light_dns;
+      if (typeof j.tts_fade_ms === "number") fadeMsEl.value = String(Math.min(50, Math.max(0, j.tts_fade_ms)));
+      if (typeof j.tts_target_peak === "number") targetPeakEl.value = String(Math.min(1, Math.max(0.5, j.tts_target_peak)));
+      if (typeof j.ui_playback_stream_pcm === "boolean") streamPcmEl.checked = j.ui_playback_stream_pcm;
+      syncLabels();
+    }
+
+    function applyPostprocessRecommended() {
+      ttsEnhanceEl.checked = POSTPROCESS_RECOMMENDED.tts_enhance;
+      highpassEl.value = String(POSTPROCESS_RECOMMENDED.tts_highpass_hz);
+      lowpassEl.value = String(POSTPROCESS_RECOMMENDED.tts_lowpass_hz);
+      ttsLightDnsEl.checked = POSTPROCESS_RECOMMENDED.tts_light_dns;
+      fadeMsEl.value = String(POSTPROCESS_RECOMMENDED.tts_fade_ms);
+      targetPeakEl.value = String(POSTPROCESS_RECOMMENDED.tts_target_peak);
+      syncLabels();
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify(formToPayload()));
+      } catch (_) {}
+      setStatus(
+        "Post-processing reset to recommended (60 Hz HP, low-pass off, etc.). Click Save to persist on the server.",
+        false
+      );
+    }
+
+    function bindRange(el) {
+      el.addEventListener("input", () => {
+        syncLabels();
+        try { localStorage.setItem(LS_KEY, JSON.stringify(formToPayload())); } catch (_) {}
+      });
+    }
+
+    [cfgEl, ddpmEl, highpassEl, lowpassEl, fadeMsEl, targetPeakEl].forEach(bindRange);
+    [ttsEnhanceEl, ttsLightDnsEl, streamPcmEl].forEach((el) => {
+      el.addEventListener("change", () => {
+        try { localStorage.setItem(LS_KEY, JSON.stringify(formToPayload())); } catch (_) {}
+      });
     });
 
-    async function loadSettings() {
-      try {
-        const r = await fetch("/api/ui/settings");
-        if (!r.ok) throw new Error("settings " + r.status);
-        const j = await r.json();
-        const s = parseFloat(j.cfg_scale);
-        if (Number.isFinite(s)) {
-          cfgEl.value = String(Math.min(3, Math.max(0, s)));
-          syncCfgLabel();
-          return;
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-      const ls = localStorage.getItem(CFG_LS);
-      if (ls != null && ls !== "") {
-        cfgEl.value = ls;
-        syncCfgLabel();
-      }
+    async function loadSettingsFromServer() {
+      const r = await fetch("/api/ui/settings");
+      if (!r.ok) throw new Error("settings " + r.status);
+      const j = await r.json();
+      applyPayload(j);
     }
 
-    async function persistCfg() {
-      const v = parseFloat(cfgEl.value);
-      if (!Number.isFinite(v)) {
-        setStatus("Invalid CFG value", true);
-        return;
-      }
+    async function saveAllSettings() {
       setStatus("Saving…", false);
       try {
+        const body = formToPayload();
         const r = await fetch("/api/ui/settings", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cfg_scale: v }),
+          body: JSON.stringify(body),
         });
         if (!r.ok) {
           const t = await r.text();
-          throw new Error(t || r.status);
+          throw new Error(t || String(r.status));
         }
         const j = await r.json();
-        cfgEl.value = String(j.cfg_scale);
-        syncCfgLabel();
-        try { localStorage.setItem(CFG_LS, cfgEl.value); } catch (_) {}
-        setStatus("CFG saved — applies to all API requests without cfg_scale.", false);
+        applyPayload(j);
+        try { localStorage.setItem(LS_KEY, JSON.stringify(j)); } catch (_) {}
+        setStatus("All settings saved to server.", false);
       } catch (e) {
         setStatus("Save failed: " + e.message, true);
       }
@@ -207,7 +561,7 @@
         const id = v.voice_id;
         const opt = document.createElement("option");
         opt.value = id;
-        const alias = (v.aliases && v.aliases.length) ? " (" + v.aliases.join(", ") + ")" : "";
+        const alias = v.aliases && v.aliases.length ? " (" + v.aliases.join(", ") + ")" : "";
         opt.textContent = id + alias;
         voiceEl.appendChild(opt);
       }
@@ -226,24 +580,45 @@
         return;
       }
       const voice = voiceEl.value;
-      const response_format = formatEl.value;
+      const useStream = streamPcmEl.checked;
+      const response_format = useStream ? "pcm" : formatEl.value;
       const cfg_scale = parseFloat(cfgEl.value);
+
+      stopStreamingPlayback();
+
+      const prevBlob = streamDlLink.getAttribute("data-blob");
+      if (prevBlob) {
+        try { URL.revokeObjectURL(prevBlob); } catch (_) {}
+        streamDlLink.removeAttribute("data-blob");
+      }
+      streamDl.classList.add("hidden");
+
       generateBtn.disabled = true;
-      setStatus("Generating…", false);
+      setStatus(useStream ? "Connecting stream…" : "Generating…", false);
       player.classList.add("hidden");
       if (player.src && player.src.startsWith("blob:")) URL.revokeObjectURL(player.src);
 
+      const controller = new AbortController();
+      streamAbortController = controller;
+
       try {
+        const speechBody = {
+          input,
+          voice,
+          response_format,
+          cfg_scale,
+          stream: useStream,
+        };
+        if (useStream && streamFullEnhanceEl.checked) {
+          speechBody.vibevoice_post_enhance_stream = true;
+        }
         const r = await fetch("/v1/audio/speech", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            input,
-            voice,
-            response_format,
-            cfg_scale,
-          }),
+          body: JSON.stringify(speechBody),
+          signal: controller.signal,
         });
+
         if (!r.ok) {
           let detail = r.statusText;
           try {
@@ -252,14 +627,31 @@
           } catch (_) {}
           throw new Error(detail);
         }
+
+        if (useStream) {
+          const { totalBytes, pcmBlob } = await streamAndPlayPcm(r, (n) => {
+            setStatus("Playing stream… " + fixed1(n / 1024) + " KB received", false);
+          });
+          const url = URL.createObjectURL(pcmBlob);
+          streamDlLink.href = url;
+          streamDlLink.setAttribute("data-blob", url);
+          streamDlLink.download = "speech.pcm";
+          streamDl.classList.remove("hidden");
+          const srPlay = streamAudioCtx && streamAudioCtx.state !== "closed" ? streamAudioCtx.sampleRate : PCM_RATE;
+          setStatus(
+            "Stream finished — " + fixed1(totalBytes / 1024) + " KB PCM (" + PCM_RATE + " Hz → playback @ " + Math.round(srPlay) + " Hz).",
+            false
+          );
+          return;
+        }
+
         const blob = await r.blob();
-        const url = URL.createObjectURL(blob);
-        const mime = r.headers.get("Content-Type") || "audio/mpeg";
 
         if (response_format === "pcm") {
           player.pause();
           player.removeAttribute("src");
           player.classList.add("hidden");
+          const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
           a.download = "speech.pcm";
@@ -267,22 +659,62 @@
           a.click();
           a.remove();
           setTimeout(() => URL.revokeObjectURL(url), 1000);
-          setStatus("PCM is raw 16-bit LE mono @ 24 kHz — file download started (" + Math.round(blob.size / 1024) + " KB).", false);
+          setStatus("PCM saved (" + Math.round(blob.size / 1024) + " KB). Raw s16le mono @ 24 kHz.", false);
           return;
         }
 
+        const url = URL.createObjectURL(blob);
+        const mime = r.headers.get("Content-Type") || "audio/mpeg";
         player.src = url;
         player.classList.remove("hidden");
         setStatus("Done — " + Math.round(blob.size / 1024) + " KB (" + mime + ").", false);
         player.play().catch(() => {});
       } catch (e) {
-        setStatus("Generation failed: " + e.message, true);
+        stopStreamingPlayback();
+        if (e.name === "AbortError") {
+          setStatus("Cancelled.", false);
+        } else {
+          setStatus("Generation failed: " + e.message, true);
+        }
       } finally {
+        streamAbortController = null;
         generateBtn.disabled = false;
       }
     }
 
-    saveCfgBtn.addEventListener("click", persistCfg);
+    function fixed1(x) {
+      return (Math.round(x * 10) / 10).toFixed(1);
+    }
+
+    saveBtn.addEventListener("click", saveAllSettings);
+    resetPostprocessBtn.addEventListener("click", applyPostprocessRecommended);
+
+    function applyQualityPreset(key) {
+      const p = QUALITY_PRESETS[key];
+      if (!p) return;
+      ddpmEl.value = String(p.ddpm_steps);
+      cfgEl.value = String(p.cfg_scale);
+      syncLabels();
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify(formToPayload()));
+      } catch (_) {}
+      setStatus(
+        "Preset applied (" + key + "). Click Save all settings to server to persist defaults for API clients.",
+        false
+      );
+    }
+    presetFastBtn.addEventListener("click", () => applyQualityPreset("fast"));
+    presetBalancedBtn.addEventListener("click", () => applyQualityPreset("balanced"));
+    presetHighBtn.addEventListener("click", () => applyQualityPreset("high"));
+    reloadBtn.addEventListener("click", async () => {
+      setStatus("Reloading…", false);
+      try {
+        await loadSettingsFromServer();
+        setStatus("Reloaded from server.", false);
+      } catch (e) {
+        setStatus("Reload failed: " + e.message, true);
+      }
+    });
     generateBtn.addEventListener("click", generate);
     textEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -293,7 +725,18 @@
 
     (async () => {
       try {
-        await loadSettings();
+        await loadSettingsFromServer();
+      } catch (e) {
+        console.warn(e);
+        const ls = localStorage.getItem(LS_KEY);
+        if (ls) {
+          try {
+            applyPayload(JSON.parse(ls));
+          } catch (_) {}
+        }
+        syncLabels();
+      }
+      try {
         await loadVoices();
         setStatus("Ready.", false);
       } catch (e) {

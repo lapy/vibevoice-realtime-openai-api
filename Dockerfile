@@ -1,5 +1,5 @@
-# Default: CUDA 12.6 + PyTorch cu126 (includes Volta / V100 and newer GPUs on supported drivers).
-# Optional — CUDA 12.8 + cu128 (PyTorch 2.11 cu128 omits Volta sm_70):
+# Default: CUDA 12.6 + PyTorch cu126 (works across a wide range of NVIDIA GPUs on supported drivers).
+# Optional — CUDA 12.8 + cu128 (some PyTorch cu128 wheels drop support for older architectures):
 #   docker build --build-arg CUDA_IMAGE_TAG=12.8.0-cudnn-runtime-ubuntu24.04 \
 #     --build-arg PYTORCH_CUDA=cu128 \
 #     --build-arg FLASH_ATTN_URL=https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3%2Bcu128torch2.11-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl \

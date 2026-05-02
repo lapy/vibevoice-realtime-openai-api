@@ -1,17 +1,18 @@
 # VibeVoice OpenAI-Compatible TTS Server Dependencies
 # Python 3.13 + PyTorch 2.11 (CUDA wheel index via UV_EXTRA_INDEX_URL)
 #
-# Default (matches Docker): PyTorch cu126 / CUDA 12.6 toolchain (incl. Volta / V100)
+# Default (matches Docker): PyTorch cu126 / CUDA 12.6 toolchain (broad NVIDIA compatibility)
 #   UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu126 uv pip install -r requirements.txt
-# Optional: cu128 / CUDA 12.8 wheels (no sm_70 in PyTorch 2.11 — avoid for V100)
+# Some PyTorch cu128 builds omit older GPU architectures; use cu126 if your GPU is unsupported.
+# Optional cu128 (typically newer GPUs only):
 #   UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu128 uv pip install -r requirements.txt
 
 torch==2.11.0
 torchvision==0.26.0
 torchaudio==2.11.0
 
-# VibeVoice from GitHub (pinned to specific commit)
-git+https://github.com/microsoft/VibeVoice.git@a507d67f8e78d9ff6b2ec0b79f1f43ad89477187
+# VibeVoice from GitHub (pinned to microsoft/VibeVoice main HEAD for Transformers 4.57+ / streaming fixes)
+git+https://github.com/microsoft/VibeVoice.git@e73d1e17c3754f046352014856a922f8208fb5d3
 
 # HuggingFace with fast downloads
 huggingface_hub[hf_xet]
